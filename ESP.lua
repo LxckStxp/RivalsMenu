@@ -1,5 +1,5 @@
 -- ESP.lua
--- Sophisticated 2D on-screen ESP for Rivals with enhanced visuals and distance limit
+-- Sophisticated ESP for Rivals with 2D boxes and 3D BillboardGui for name/health
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local ESP = {}
@@ -8,6 +8,7 @@ ESP.__index = ESP
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
 
 -- ESP Configuration
 local CONFIG = {
@@ -16,8 +17,8 @@ local CONFIG = {
     TEXT_COLOR = Color3.fromRGB(255, 255, 255),
     BOX_THICKNESS = 2,
     BOX_PADDING = 2,
-    NAME_SIZE = 18,
-    NAME_OFFSET_Y = -25,
+    NAME_SIZE = UDim2.new(0, 220, 0, 50),
+    NAME_OFFSET = Vector3.new(0, 3.5, 0),
     HEALTH_BAR_WIDTH = 8,
     HEALTH_BAR_HEIGHT = 6,
     HEALTH_BAR_COLOR_START = Color3.fromRGB(50, 255, 50), -- Green for full health
@@ -32,7 +33,7 @@ function ESP.new()
     self.TeamCheck = true
     self.ThroughWalls = true
     self.Color = CONFIG.BOX_COLOR
-    self.ESPObjects = {} -- { [player] = { Box, Outline, Name, HealthBar, HealthFill } }
+    self.ESPObjects = {} -- { [player] = { Box, Outline, BillboardGui, NameLabel, HealthBar, HealthFill } }
     self.Connection = nil
     return self
 end
@@ -40,7 +41,7 @@ end
 function ESP:Enable()
     if self.Enabled then return end
     self.Enabled = true
-    print("ESP enabled with 2D drawing.")
+    print("ESP enabled with 2D boxes and 3D BillboardGui.")
     
     self.Connection = RunService.RenderStepped:Connect(function()
         self:Update()
@@ -56,9 +57,7 @@ function ESP:Disable()
     for _, obj in pairs(self.ESPObjects) do
         obj.Box:Remove()
         obj.Outline:Remove()
-        obj.Name:Remove()
-        if obj.HealthBar then obj.HealthBar:Remove() end
-        if obj.HealthFill then obj.HealthFill:Remove() end
+        if obj.BillboardGui then obj.BillboardGui:Destroy() end
     end
     self.ESPObjects = {}
     print("ESP disabled.")
@@ -81,7 +80,8 @@ function ESP:SetColor(color)
     print("ESP Color updated to: " .. tostring(color))
     for _, obj in pairs(self.ESPObjects) do
         obj.Box.Color = color
-        obj.Name.Color = color
+        if obj.NameLabel then obj.NameLabel.TextColor3 = color end
+        if obj.HealthFill then obj.HealthFill.BackgroundColor3 = self:GetHealthColor(obj.Character:FindFirstChildOfClass("Humanoid")) end
     end
 end
 
@@ -105,30 +105,50 @@ function ESP:CreateESPForPlayer(player, character)
     outline.Filled = false
     outline.Visible = false
 
-    local name = Drawing.new("Text")
-    name.Size = CONFIG.NAME_SIZE
-    name.Center = true
-    name.Outline = true
-    name.Color = CONFIG.TEXT_COLOR
-    name.Font = Drawing.Fonts.UI
-    name.Visible = false
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_Billboard_" .. player.Name
+    billboard.Adornee = rootPart
+    billboard.Size = CONFIG.NAME_SIZE
+    billboard.StudsOffset = CONFIG.NAME_OFFSET
+    billboard.AlwaysOnTop = self.ThroughWalls
+    billboard.ClipsDescendants = true
+    billboard.Parent = CoreGui
 
-    local healthBar = Drawing.new("Square")
-    healthBar.Thickness = 1
-    healthBar.Color = Color3.fromRGB(20, 20, 20) -- Dark background
-    healthBar.Filled = true
-    healthBar.Visible = false
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    nameLabel.BackgroundTransparency = 0.6
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = CONFIG.TEXT_COLOR
+    nameLabel.TextScaled = true
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextStrokeTransparency = 0.3
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.BorderSizePixel = 0
+    nameLabel.Parent = billboard
 
-    local healthFill = Drawing.new("Square")
-    healthFill.Thickness = 1
-    healthFill.Color = CONFIG.HEALTH_BAR_COLOR_START
-    healthFill.Filled = true
-    healthFill.Visible = false
+    local healthBar = Instance.new("Frame")
+    healthBar.Name = "HealthBar"
+    healthBar.Size = UDim2.new(1, -10, 0, CONFIG.HEALTH_BAR_HEIGHT)
+    healthBar.Position = UDim2.new(0, 5, 0.5, 5)
+    healthBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    healthBar.BorderSizePixel = 0
+    healthBar.Parent = billboard
+
+    local healthFill = Instance.new("Frame")
+    healthFill.Name = "HealthFill"
+    healthFill.Size = UDim2.new(math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1), 0, 1, 0)
+    healthFill.Position = UDim2.new(0, 0, 0, 0)
+    healthFill.BackgroundColor3 = self:GetHealthColor(humanoid)
+    healthFill.BorderSizePixel = 0
+    healthFill.Parent = healthBar
 
     return {
         Box = box,
         Outline = outline,
-        Name = name,
+        BillboardGui = billboard,
+        NameLabel = nameLabel,
         HealthBar = healthBar,
         HealthFill = healthFill,
         Character = character
@@ -154,6 +174,16 @@ function ESP:GetCharacterBounds(character)
     return maxPos - minPos
 end
 
+function ESP:GetHealthColor(humanoid)
+    if not humanoid or humanoid.Health <= 0 then return CONFIG.HEALTH_BAR_COLOR_END end
+    local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+    return Color3.fromRGB(
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.R * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.R * (1 - healthPercent)),
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.G * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.G * (1 - healthPercent)),
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.B * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.B * (1 - healthPercent))
+    )
+end
+
 function ESP:Update()
     local localPlayer = Players.LocalPlayer
     local localRoot = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -170,9 +200,7 @@ function ESP:Update()
         if not stillDetected then
             obj.Box:Remove()
             obj.Outline:Remove()
-            obj.Name:Remove()
-            if obj.HealthBar then obj.HealthBar:Remove() end
-            if obj.HealthFill then obj.HealthFill:Remove() end
+            if obj.BillboardGui then obj.BillboardGui:Destroy() end
             self.ESPObjects[player] = nil
             print("ESP removed for: " .. player.Name)
         end
@@ -197,11 +225,16 @@ function ESP:Update()
                         if obj then
                             obj.Box.Visible = false
                             obj.Outline.Visible = false
-                            obj.Name.Visible = false
-                            if obj.HealthBar then obj.HealthBar.Visible = false end
-                            if obj.HealthFill then obj.HealthFill.Visible = false end
+                            if obj.BillboardGui then
+                                obj.BillboardGui.Enabled = false
+                            end
                         end
                         continue
+                    else
+                        local obj = self.ESPObjects[player]
+                        if obj and obj.BillboardGui then
+                            obj.BillboardGui.Enabled = true
+                        end
                     end
                 end
 
@@ -211,9 +244,7 @@ function ESP:Update()
                     if espObj then
                         espObj.Box:Remove()
                         espObj.Outline:Remove()
-                        espObj.Name:Remove()
-                        if espObj.HealthBar then espObj.HealthBar:Remove() end
-                        if espObj.HealthFill then espObj.HealthFill:Remove() end
+                        if espObj.BillboardGui then espObj.BillboardGui:Destroy() end
                     end
                     local newESP = self:CreateESPForPlayer(player, character)
                     if newESP then
@@ -226,9 +257,9 @@ function ESP:Update()
                     if not onScreen and not self.ThroughWalls then
                         espObj.Box.Visible = false
                         espObj.Outline.Visible = false
-                        espObj.Name.Visible = false
-                        if espObj.HealthBar then espObj.HealthBar.Visible = false end
-                        if espObj.HealthFill then espObj.HealthFill.Visible = false end
+                        if espObj.BillboardGui then
+                            espObj.BillboardGui.Enabled = false
+                        end
                         continue
                     end
 
@@ -247,27 +278,20 @@ function ESP:Update()
                     espObj.Outline.Size = Vector2.new(sizeX + CONFIG.BOX_PADDING * 2 + 2, sizeY + CONFIG.BOX_PADDING * 2 + 2)
                     espObj.Outline.Visible = true
 
-                    -- Name
-                    espObj.Name.Position = Vector2.new(pos2D.X, pos2D.Y + CONFIG.NAME_OFFSET_Y)
-                    espObj.Name.Text = player.Name
-                    espObj.Name.Visible = true
+                    -- Update BillboardGui (name and health)
+                    if espObj.BillboardGui then
+                        espObj.BillboardGui.Adornee = rootPart
+                        espObj.BillboardGui.AlwaysOnTop = self.ThroughWalls
+                        espObj.BillboardGui.Enabled = true
 
-                    -- Health Bar (improved design with gradient)
-                    local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-                    local barHeight = sizeY * healthPercent
-                    local barY = pos2D.Y - sizeY / 2 - CONFIG.BOX_PADDING - 2
-                    espObj.HealthBar.Position = Vector2.new(pos2D.X - CONFIG.HEALTH_BAR_WIDTH / 2 - sizeX / 2 - CONFIG.BOX_PADDING - 2, barY + sizeY - CONFIG.HEALTH_BAR_HEIGHT)
-                    espObj.HealthBar.Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, CONFIG.HEALTH_BAR_HEIGHT)
-                    espObj.HealthBar.Visible = true
-
-                    espObj.HealthFill.Position = Vector2.new(pos2D.X - CONFIG.HEALTH_BAR_WIDTH / 2 - sizeX / 2 - CONFIG.BOX_PADDING - 2, barY + sizeY - CONFIG.HEALTH_BAR_HEIGHT - (sizeY - CONFIG.HEALTH_BAR_HEIGHT) * (1 - healthPercent))
-                    espObj.HealthFill.Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, (sizeY - CONFIG.HEALTH_BAR_HEIGHT) * healthPercent + CONFIG.HEALTH_BAR_HEIGHT)
-                    espObj.HealthFill.Color = Color3.fromRGB(
-                        math.floor(CONFIG.HEALTH_BAR_COLOR_START.R * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.R * (1 - healthPercent)),
-                        math.floor(CONFIG.HEALTH_BAR_COLOR_START.G * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.G * (1 - healthPercent)),
-                        math.floor(CONFIG.HEALTH_BAR_COLOR_START.B * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.B * (1 - healthPercent))
-                    )
-                    espObj.HealthFill.Visible = true
+                        local humanoid = character:FindFirstChildOfClass("Humanoid")
+                        if humanoid then
+                            espObj.NameLabel.Text = player.Name
+                            local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+                            espObj.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+                            espObj.HealthFill.BackgroundColor3 = self:GetHealthColor(humanoid)
+                        end
+                    end
                 end
             end
         end
@@ -278,6 +302,16 @@ function ESP:Destroy()
     self:Disable()
     self.ESPObjects = {}
     print("ESP instance destroyed.")
+end
+
+function ESP:GetHealthColor(humanoid)
+    if not humanoid or humanoid.Health <= 0 then return CONFIG.HEALTH_BAR_COLOR_END end
+    local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+    return Color3.fromRGB(
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.R * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.R * (1 - healthPercent)),
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.G * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.G * (1 - healthPercent)),
+        math.floor(CONFIG.HEALTH_BAR_COLOR_START.B * healthPercent + CONFIG.HEALTH_BAR_COLOR_END.B * (1 - healthPercent))
+    )
 end
 
 return ESP
