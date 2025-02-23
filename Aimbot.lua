@@ -1,7 +1,7 @@
 -- Aimbot.lua
--- Aimbot functionality for Rivals
+-- Aimbot functionality for Rivals with database-driven detection
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsMenu/main/Utils.lua"))()
 local Aimbot = {}
 Aimbot.__index = Aimbot
 
@@ -48,24 +48,25 @@ function Aimbot:Update()
     
     local closestPlayer, closestDist = nil, self.FOV
     
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            local head = player.Character.Head
+    for _, data in pairs(Utils.GetPlayers()) do
+        local player = data.Player
+        if player ~= localPlayer then
+            local head = data.Humanoid.Parent:FindFirstChild("Head") or data.RootPart
             local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
             
             if onScreen then
                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
                 if dist < closestDist then
                     closestDist = dist
-                    closestPlayer = player
+                    closestPlayer = data
                 end
             end
         end
     end
     
     if closestPlayer then
-        self.Target = closestPlayer
-        local targetHead = closestPlayer.Character.Head
+        self.Target = closestPlayer.Player
+        local targetHead = closestPlayer.Humanoid.Parent:FindFirstChild("Head") or closestPlayer.RootPart
         local targetPos = camera:WorldToViewportPoint(targetHead.Position)
         Utils.SmoothAim(camera, targetPos)
     else
