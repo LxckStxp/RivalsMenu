@@ -1,18 +1,21 @@
 -- ESP.lua
--- ESP functionality for Rivals with database-driven detection
+-- ESP functionality for Rivals with database-driven detection and 3D GUI visualization
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsMenu/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local ESP = {}
 ESP.__index = ESP
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 function ESP.new()
     local self = setmetatable({}, ESP)
     self.Enabled = false
     self.TeamCheck = true
-    self.ESPObjects = {}
+    self.ThroughWalls = true
+    self.Color = Color3.fromRGB(255, 0, 0) -- Default red
+    self.ESPObjects = {} -- { [player] = { BillboardGui, Box } }
     self.Connection = nil
     return self
 end
@@ -20,6 +23,7 @@ end
 function ESP:Enable()
     if self.Enabled then return end
     self.Enabled = true
+    print("ESP enabled.")
     
     self.Connection = RunService.RenderStepped:Connect(function()
         self:Update()
@@ -33,22 +37,42 @@ function ESP:Disable()
         self.Connection = nil
     end
     for _, obj in pairs(self.ESPObjects) do
-        obj:Remove()
+        obj.BillboardGui:Destroy()
     end
     self.ESPObjects = {}
+    print("ESP disabled.")
 end
 
 function ESP:SetTeamCheck(state)
     self.TeamCheck = state
+    print("ESP Team Check set to: " .. tostring(state))
     self:Update()
+end
+
+function ESP:SetThroughWalls(state)
+    self.ThroughWalls = state
+    print("ESP Through Walls set to: " .. tostring(state))
+    self:Update()
+end
+
+function ESP:SetColor(color)
+    self.Color = color
+    print("ESP Color updated to: " .. tostring(color))
+    for _, obj in pairs(self.ESPObjects) do
+        obj.Box.Color3 = color
+    end
 end
 
 function ESP:Update()
     local localPlayer = Players.LocalPlayer
-    for _, obj in pairs(self.ESPObjects) do
-        obj:Remove()
+    
+    -- Clean up existing ESP objects for players no longer detected
+    for player, obj in pairs(self.ESPObjects) do
+        if not Utils.GetPlayers()[player] then
+            obj.BillboardGui:Destroy()
+            self.ESPObjects[player] = nil
+        end
     end
-    self.ESPObjects = {}
     
     if not self.Enabled then return end
     
@@ -56,8 +80,40 @@ function ESP:Update()
         local player = data.Player
         if player ~= localPlayer then
             if not self.TeamCheck or player.Team ~= localPlayer.Team then
-                local espBox = Utils.CreateESPBox(data.RootPart)
-                table.insert(self.ESPObjects, espBox)
+                if not self.ESPObjects[player] then
+                    -- Create new ESP object if not already present
+                    local rootPart = data.RootPart
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ESP_" .. player.Name
+                    billboard.Adornee = rootPart
+                    billboard.Size = UDim2.new(0, 100, 0, 100)
+                    billboard.StudsOffset = Vector3.new(0, 3, 0) -- Above player's head
+                    billboard.AlwaysOnTop = self.ThroughWalls
+                    billboard.Parent = CoreGui
+                    
+                    local box = Instance.new("BoxHandleAdornment")
+                    box.Name = "ESPBox"
+                    box.Adornee = rootPart
+                    box.Size = Vector3.new(4, 6, 4) -- Width, height, depth
+                    box.Color3 = self.Color
+                    box.Transparency = 0.5
+                    box.AlwaysOnTop = self.ThroughWalls
+                    box.ZIndex = 0
+                    box.Parent = billboard
+                    
+                    self.ESPObjects[player] = {
+                        BillboardGui = billboard,
+                        Box = box
+                    }
+                else
+                    -- Update existing ESP object
+                    local obj = self.ESPObjects[player]
+                    obj.BillboardGui.Adornee = data.RootPart
+                    obj.BillboardGui.AlwaysOnTop = self.ThroughWalls
+                    obj.Box.Adornee = data.RootPart
+                    obj.Box.Color3 = self.Color
+                    obj.Box.AlwaysOnTop = self.ThroughWalls
+                end
             end
         end
     end
@@ -65,6 +121,8 @@ end
 
 function ESP:Destroy()
     self:Disable()
+    self.ESPObjects = {}
+    print("ESP instance destroyed.")
 end
 
 return ESP
