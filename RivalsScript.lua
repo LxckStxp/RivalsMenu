@@ -1,5 +1,5 @@
 -- RivalsScript.lua
--- Main script for Rivals cheat system with enhanced Censura UI menu
+-- Main script for Rivals cheat system with streamlined Censura UI menu
 
 local function loadModule(url)
     print("Attempting to load module from: " .. url)
@@ -45,7 +45,7 @@ local espInstance = ESP.new()
 print("Creating UI elements...")
 
 -- Aimbot Section
-gui:CreateButton("Aimbot Options", function() end) -- Separator (non-functional label)
+gui:CreateButton("Aimbot Options", function() end) -- Separator
 
 local aimbotToggle = gui:CreateToggle("Aimbot", false, function(state)
     print("Aimbot toggled: " .. tostring(state))
@@ -72,7 +72,7 @@ local aimbotSmoothnessSlider = gui:CreateSlider("Smoothness Factor", 0.05, 0.5, 
 end)
 
 -- ESP Section
-gui:CreateButton("ESP Options", function() end) -- Separator (non-functional label)
+gui:CreateButton("ESP Options", function() end) -- Separator
 
 local espToggle = gui:CreateToggle("ESP", false, function(state)
     print("ESP toggled: " .. tostring(state))
@@ -93,33 +93,16 @@ local espThroughWallsToggle = gui:CreateToggle("Through Walls", true, function(s
     espInstance:SetThroughWalls(state)
 end)
 
-local espColorSliderR = gui:CreateSlider("ESP Color (R)", 0, 255, 255, function(value)
-    print("ESP Color R set to: " .. value)
-    local g = espColorSliderG:GetValue()
-    local b = espColorSliderB:GetValue()
-    espInstance:SetColor(Color3.fromRGB(value, g, b))
-end)
-
-local espColorSliderG = gui:CreateSlider("ESP Color (G)", 0, 255, 0, function(value)
-    print("ESP Color G set to: " .. value)
-    local r = espColorSliderR:GetValue()
-    local b = espColorSliderB:GetValue()
-    espInstance:SetColor(Color3.fromRGB(r, value, b))
-end)
-
-local espColorSliderB = gui:CreateSlider("ESP Color (B)", 0, 255, 0, function(value)
-    print("ESP Color B set to: " .. value)
-    local r = espColorSliderR:GetValue()
-    local g = espColorSliderG:GetValue()
-    espInstance:SetColor(Color3.fromRGB(r, g, value))
-end)
-
 -- Database Section
-gui:CreateButton("Database Options", function() end) -- Separator (non-functional label)
+gui:CreateButton("Database Options", function() end) -- Separator
 
 local fullScanButton = gui:CreateButton("Force Full Scan", function()
     print("Forcing full database scan...")
-    Utils.FullScan()
+    if Utils and Utils.ForceFullScan then
+        Utils.ForceFullScan()
+    else
+        warn("Full scan function not available in Utils.")
+    end
 end)
 
 -- Destroy Button
