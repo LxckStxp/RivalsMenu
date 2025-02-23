@@ -1,7 +1,7 @@
 -- Aimbot.lua
--- Aimbot functionality for Rivals with database-driven detection
+-- Aimbot functionality for Rivals with database-driven detection and smoothing options
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsMenu/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
 local Aimbot = {}
 Aimbot.__index = Aimbot
 
@@ -12,7 +12,9 @@ local UserInputService = game:GetService("UserInputService")
 function Aimbot.new()
     local self = setmetatable({}, Aimbot)
     self.Enabled = false
-    self.FOV = 150
+    self.FOV = 150          -- Default FOV (pixels)
+    self.Smoothing = true   -- Default to smooth aiming
+    self.Smoothness = 0.1   -- Default smoothing factor (0.05-0.5 range)
     self.Target = nil
     self.Connection = nil
     return self
@@ -21,6 +23,7 @@ end
 function Aimbot:Enable()
     if self.Enabled then return end
     self.Enabled = true
+    print("Aimbot enabled.")
     
     self.Connection = RunService.RenderStepped:Connect(function()
         if self.Enabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
@@ -35,10 +38,22 @@ function Aimbot:Disable()
         self.Connection:Disconnect()
         self.Connection = nil
     end
+    print("Aimbot disabled.")
 end
 
 function Aimbot:SetFOV(value)
-    self.FOV = value
+    self.FOV = math.clamp(value, 50, 300) -- Ensure value stays within UI range
+    print("Aimbot FOV updated to: " .. self.FOV)
+end
+
+function Aimbot:SetSmoothing(state)
+    self.Smoothing = state
+    print("Aimbot smoothing set to: " .. tostring(state))
+end
+
+function Aimbot:SetSmoothness(value)
+    self.Smoothness = math.clamp(value, 0.05, 0.5) -- Ensure value stays within UI range
+    print("Aimbot smoothness updated to: " .. self.Smoothness)
 end
 
 function Aimbot:Update()
@@ -68,7 +83,11 @@ function Aimbot:Update()
         self.Target = closestPlayer.Player
         local targetHead = closestPlayer.Humanoid.Parent:FindFirstChild("Head") or closestPlayer.RootPart
         local targetPos = camera:WorldToViewportPoint(targetHead.Position)
-        Utils.SmoothAim(camera, targetPos)
+        if self.Smoothing then
+            Utils.SmoothAim(camera, targetPos, self.Smoothness)
+        else
+            Utils.SnapAim(camera, targetPos)
+        end
     else
         self.Target = nil
     end
@@ -76,6 +95,8 @@ end
 
 function Aimbot:Destroy()
     self:Disable()
+    self.Target = nil
+    print("Aimbot instance destroyed.")
 end
 
 return Aimbot
