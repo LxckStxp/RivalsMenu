@@ -31,10 +31,10 @@ function PlayerDatabase:Initialize()
         self:RemovePlayer(player)
     end)
 
-    -- Periodic lightweight scan of cached directories (every 2 seconds)
+    -- Periodic lightweight scan of cached directories (every 60 seconds)
     local lastScan = tick()
     self.Connections.Scan = RunService.Heartbeat:Connect(function()
-        if tick() - lastScan >= 2 then
+        if tick() - lastScan >= 60 then
             self:ScanCachedDirectories()
             lastScan = tick()
         end
