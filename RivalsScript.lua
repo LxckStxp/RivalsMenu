@@ -18,9 +18,9 @@ print("Starting RivalsScript execution...")
 
 -- Load modules from GitHub
 local CensuraDev = loadModule("https://raw.githubusercontent.com/LxckStxp/Censura/main/CensuraDev.lua")
-local Aimbot = loadModule("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Aimbot.lua")
-local ESP = loadModule("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/ESP.lua")
-local Utils = loadModule("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua")
+local Aimbot = loadModule("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Aimbot.lua")
+local ESP = loadModule("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/ESP.lua")
+local Utils = loadModule("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua")
 
 -- Verify all modules loaded
 if not (CensuraDev and Aimbot and ESP and Utils) then
