@@ -1,7 +1,7 @@
 -- ESP.lua
--- ESP functionality for Rivals with per-part boxes and name/health display
+-- ESP functionality for Rivals with per-part boxes, name/health, and respawn handling
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
 local ESP = {}
 ESP.__index = ESP
 
@@ -15,7 +15,7 @@ function ESP.new()
     self.TeamCheck = true
     self.ThroughWalls = true
     self.Color = Color3.fromRGB(255, 0, 0) -- Default red
-    self.ESPObjects = {} -- { [player] = { BillboardGui, NameLabel, Boxes = { [part] = Box } } }
+    self.ESPObjects = {} -- { [player] = { BillboardGui, NameLabel, Boxes = { [part] = Box }, Character, Connection } }
     self.Connection = nil
     return self
 end
@@ -37,6 +37,9 @@ function ESP:Disable()
         self.Connection = nil
     end
     for _, obj in pairs(self.ESPObjects) do
+        if obj.Connection then
+            obj.Connection:Disconnect()
+        end
         obj.BillboardGui:Destroy()
     end
     self.ESPObjects = {}
@@ -59,6 +62,7 @@ function ESP:SetColor(color)
     self.Color = color
     print("ESP Color updated to: " .. tostring(color))
     for _, obj in pairs(self.ESPObjects) do
+        obj.NameLabel.TextColor3 = color
         for _, box in pairs(obj.Boxes) do
             box.Color3 = color
         end
@@ -69,10 +73,10 @@ function ESP:CreateESPForPlayer(player, character)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return nil end
 
-    -- Create BillboardGui for name and health
     local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildOfClass("Part")
     if not rootPart then return nil end
 
+    -- Create BillboardGui for name and health
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "ESP_" .. player.Name
     billboard.Adornee = rootPart
@@ -94,11 +98,11 @@ function ESP:CreateESPForPlayer(player, character)
     -- Create boxes for each humanoid part
     local boxes = {}
     for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") and part ~= rootPart then -- Exclude root part for cleaner look
+        if part:IsA("BasePart") and part ~= rootPart then
             local box = Instance.new("BoxHandleAdornment")
             box.Name = "ESPBox_" .. part.Name
             box.Adornee = part
-            box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1) -- Slightly larger than part
+            box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
             box.Color3 = self.Color
             box.Transparency = 0.5
             box.AlwaysOnTop = self.ThroughWalls
@@ -108,10 +112,23 @@ function ESP:CreateESPForPlayer(player, character)
         end
     end
 
+    -- Track character changes for respawn
+    local connection = player.CharacterAdded:Connect(function(newChar)
+        if self.ESPObjects[player] then
+            self.ESPObjects[player].BillboardGui:Destroy()
+            self.ESPObjects[player] = nil
+            if self.Enabled then
+                self:Update() -- Trigger update to recreate ESP
+            end
+        end
+    end)
+
     return {
         BillboardGui = billboard,
         NameLabel = nameLabel,
-        Boxes = boxes
+        Boxes = boxes,
+        Character = character,
+        Connection = connection
     }
 end
 
@@ -128,6 +145,9 @@ function ESP:Update()
             end
         end
         if not stillDetected then
+            if obj.Connection then
+                obj.Connection:Disconnect()
+            end
             obj.BillboardGui:Destroy()
             self.ESPObjects[player] = nil
         end
@@ -141,11 +161,19 @@ function ESP:Update()
             if not self.TeamCheck or player.Team ~= localPlayer.Team then
                 local character = player.Character
                 if character then
-                    if not self.ESPObjects[player] then
-                        -- Create new ESP for player
+                    if not self.ESPObjects[player] or self.ESPObjects[player].Character ~= character then
+                        -- Create new ESP if player doesn't have one or character changed (respawn)
+                        if self.ESPObjects[player] then
+                            if self.ESPObjects[player].Connection then
+                                self.ESPObjects[player].Connection:Disconnect()
+                            end
+                            self.ESPObjects[player].BillboardGui:Destroy()
+                            self.ESPObjects[player] = nil
+                        end
                         local espObject = self:CreateESPForPlayer(player, character)
                         if espObject then
                             self.ESPObjects[player] = espObject
+                            print("ESP created/updated for: " .. player.Name)
                         end
                     else
                         -- Update existing ESP
@@ -157,7 +185,7 @@ function ESP:Update()
                             obj.BillboardGui.Adornee = data.RootPart
                             obj.BillboardGui.AlwaysOnTop = self.ThroughWalls
 
-                            -- Update boxes for existing parts, remove for missing parts, add for new parts
+                            -- Sync boxes with current character parts
                             local currentParts = {}
                             for _, part in pairs(character:GetChildren()) do
                                 if part:IsA("BasePart") and part ~= data.RootPart then
