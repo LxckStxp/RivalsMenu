@@ -1,5 +1,5 @@
 -- Aimbot.lua
--- Aimbot functionality for Rivals with improved targeting and lock persistence
+-- Aimbot functionality for Rivals with head-only targeting and lock persistence
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local Aimbot = {}
@@ -62,8 +62,8 @@ function Aimbot:IsTargetValid(targetData)
         return false
     end
     local humanoid = targetData.Humanoid
-    local rootPart = targetData.RootPart
-    return humanoid and humanoid.Health > 0 and rootPart and rootPart.Parent
+    local head = targetData.Player.Character:FindFirstChild("Head")
+    return humanoid and humanoid.Health > 0 and head and head.Parent
 end
 
 function Aimbot:Update()
@@ -77,14 +77,12 @@ function Aimbot:Update()
         return
     end
 
-    -- If we have a valid target, stick to it
+    -- If we have a valid target, stick to its head
     if self.Target and self:IsTargetValid(self.Target) then
         local character = self.Target.Player.Character
         local head = character:FindFirstChild("Head")
-        local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-        local targetPart = head or torso -- Prioritize Head, then Torso
-        if targetPart then
-            local targetPos = camera:WorldToViewportPoint(targetPart.Position)
+        if head then
+            local targetPos = camera:WorldToViewportPoint(head.Position)
             if self.Smoothing then
                 Utils.SmoothAim(camera, targetPos, self.Smoothness)
             else
@@ -94,7 +92,7 @@ function Aimbot:Update()
         return
     end
 
-    -- Find a new target if no valid lock exists
+    -- Find a new target if no valid lock exists (head only)
     local closestPlayer, closestDist = nil, self.FOV
     
     for _, data in pairs(Utils.GetPlayers()) do
@@ -103,10 +101,8 @@ function Aimbot:Update()
             local character = player.Character
             if character then
                 local head = character:FindFirstChild("Head")
-                local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-                local targetPart = head or torso -- Prioritize Head, then Torso
-                if targetPart then
-                    local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                if head then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                     if onScreen then
                         local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
                         if dist < closestDist then
@@ -123,16 +119,14 @@ function Aimbot:Update()
         self.Target = closestPlayer
         local character = closestPlayer.Player.Character
         local head = character:FindFirstChild("Head")
-        local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-        local targetPart = head or torso
-        if targetPart then
-            local targetPos = camera:WorldToViewportPoint(targetPart.Position)
+        if head then
+            local targetPos = camera:WorldToViewportPoint(head.Position)
             if self.Smoothing then
                 Utils.SmoothAim(camera, targetPos, self.Smoothness)
             else
                 Utils.SnapAim(camera, targetPos)
             end
-            print("Locked onto target: " .. closestPlayer.Player.Name)
+            print("Locked onto target head: " .. closestPlayer.Player.Name)
         end
     end
 end
