@@ -1,5 +1,5 @@
 -- Aimbot.lua
--- Aimbot functionality for Rivals with head-only targeting and lock persistence
+-- Advanced aimbot for Rivals with head-specific targeting and hard lock
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local Aimbot = {}
@@ -15,15 +15,16 @@ function Aimbot.new()
     self.FOV = 150          -- Default FOV (pixels)
     self.Smoothing = true   -- Default to smooth aiming
     self.Smoothness = 0.1   -- Default smoothing factor (0.05-0.5 range)
-    self.Target = nil       -- Current locked target
+    self.Target = nil       -- Current locked target data
     self.Connection = nil
+    self.LastLockTime = 0   -- Timestamp of last lock for stability
     return self
 end
 
 function Aimbot:Enable()
     if self.Enabled then return end
     self.Enabled = true
-    print("Aimbot enabled.")
+    print("Aimbot enabled with hard lock.")
     
     self.Connection = RunService.RenderStepped:Connect(function()
         if self.Enabled then
@@ -38,7 +39,8 @@ function Aimbot:Disable()
         self.Connection:Disconnect()
         self.Connection = nil
     end
-    self.Target = nil -- Clear target when disabled
+    self.Target = nil       -- Clear target when disabled
+    self.LastLockTime = 0
     print("Aimbot disabled.")
 end
 
@@ -63,7 +65,7 @@ function Aimbot:IsTargetValid(targetData)
     end
     local humanoid = targetData.Humanoid
     local head = targetData.Player.Character:FindFirstChild("Head")
-    return humanoid and humanoid.Health > 0 and head and head.Parent
+    return humanoid and humanoid.Health > 0 and head and head.Parent and head:IsA("BasePart")
 end
 
 function Aimbot:Update()
@@ -73,26 +75,30 @@ function Aimbot:Update()
     local isKeyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 
     if not isKeyPressed then
-        self.Target = nil -- Release lock when key is lifted
+        self.Target = nil -- Release hard lock when key is lifted
+        self.LastLockTime = 0
         return
     end
 
-    -- If we have a valid target, stick to its head
+    -- Maintain hard lock on the target's head if valid
     if self.Target and self:IsTargetValid(self.Target) then
         local character = self.Target.Player.Character
         local head = character:FindFirstChild("Head")
-        if head then
+        if head and head:IsA("BasePart") then
             local targetPos = camera:WorldToViewportPoint(head.Position)
             if self.Smoothing then
                 Utils.SmoothAim(camera, targetPos, self.Smoothness)
             else
                 Utils.SnapAim(camera, targetPos)
             end
+            print("Hard locked on " .. self.Target.Player.Name .. "'s head")
+        else
+            self.Target = nil -- Release if head is missing
         end
         return
     end
 
-    -- Find a new target if no valid lock exists (head only)
+    -- Find a new head target if no valid lock exists
     local closestPlayer, closestDist = nil, self.FOV
     
     for _, data in pairs(Utils.GetPlayers()) do
@@ -101,7 +107,7 @@ function Aimbot:Update()
             local character = player.Character
             if character then
                 local head = character:FindFirstChild("Head")
-                if head then
+                if head and head:IsA("BasePart") then
                     local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                     if onScreen then
                         local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
@@ -117,16 +123,19 @@ function Aimbot:Update()
     
     if closestPlayer then
         self.Target = closestPlayer
+        self.LastLockTime = tick()
         local character = closestPlayer.Player.Character
         local head = character:FindFirstChild("Head")
-        if head then
+        if head and head:IsA("BasePart") then
             local targetPos = camera:WorldToViewportPoint(head.Position)
             if self.Smoothing then
                 Utils.SmoothAim(camera, targetPos, self.Smoothness)
             else
                 Utils.SnapAim(camera, targetPos)
             end
-            print("Locked onto target head: " .. closestPlayer.Player.Name)
+            print("Locked onto " .. closestPlayer.Player.Name .. "'s head")
+        else
+            self.Target = nil -- Fallback if head is missing on lock
         end
     end
 end
@@ -134,6 +143,7 @@ end
 function Aimbot:Destroy()
     self:Disable()
     self.Target = nil
+    self.LastLockTime = 0
     print("Aimbot instance destroyed.")
 end
 
