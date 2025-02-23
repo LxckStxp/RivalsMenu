@@ -1,7 +1,7 @@
 -- ESP.lua
 -- ESP functionality for Rivals with database-driven detection
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsMenu/main/Utils.lua"))()
 local ESP = {}
 ESP.__index = ESP
 
