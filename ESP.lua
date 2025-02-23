@@ -1,5 +1,5 @@
 -- ESP.lua
--- Sophisticated ESP for Rivals with sleek, modern visuals
+-- Sophisticated ESP for Rivals with sleek, modern visuals and error handling
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local ESP = {}
@@ -26,7 +26,7 @@ function ESP.new()
     self.Enabled = false
     self.TeamCheck = true
     self.ThroughWalls = true
-    self.Color = CONFIG.BOX_COLOR -- Default box color
+    self.Color = CONFIG.BOX_COLOR
     self.ESPObjects = {} -- { [player] = ESPObject }
     self.Connection = nil
     return self
@@ -55,7 +55,10 @@ end
 function ESPObject:Initialize()
     local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
     local rootPart = self.Character:FindFirstChild("HumanoidRootPart") or self.Character:FindFirstChildOfClass("Part")
-    if not (humanoid and rootPart) then return end
+    if not (humanoid and rootPart) then
+        warn("Failed to initialize ESP for " .. self.Player.Name .. ": Missing humanoid or root part")
+        return
+    end
 
     -- Create BillboardGui for name and health
     self.BillboardGui = Instance.new("BillboardGui")
@@ -91,7 +94,7 @@ function ESPObject:Initialize()
     self.HealthBar.Parent = self.BillboardGui
 
     self.HealthFill = Instance.new("Frame")
-    self.HealthFill.Size = UDim2.new(1, 0, humanoid.Health / humanoid.MaxHealth, 0)
+    self.HealthFill.Size = UDim2.new(1, 0, math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1), 0)
     self.HealthFill.Position = UDim2.new(0, 0, 1, 0)
     self.HealthFill.AnchorPoint = Vector2.new(0, 1)
     self.HealthFill.BackgroundColor3 = CONFIG.HEALTH_BAR_COLOR
@@ -164,7 +167,10 @@ end
 function ESPObject:Update()
     local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
     local rootPart = self.Character:FindFirstChild("HumanoidRootPart") or self.Character:FindFirstChildOfClass("Part")
-    if not (humanoid and rootPart) then return end
+    if not (humanoid and rootPart and self.BillboardGui and self.NameLabel and self.HealthFill and self.Box and self.Outline) then
+        print("Skipping ESP update for " .. self.Player.Name .. " due to missing components")
+        return
+    end
 
     -- Update name and health
     self.NameLabel.Text = self.Player.Name
