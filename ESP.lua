@@ -1,7 +1,7 @@
 -- ESP.lua
 -- ESP functionality for Rivals with per-part boxes, name/health, and respawn handling
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local ESP = {}
 ESP.__index = ESP
 
