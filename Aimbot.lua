@@ -1,7 +1,7 @@
 -- Aimbot.lua
 -- Aimbot functionality for Rivals with database-driven detection and smoothing options
 
-local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
+local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local Aimbot = {}
 Aimbot.__index = Aimbot
 
