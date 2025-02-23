@@ -1,5 +1,5 @@
 -- ESP.lua
--- Sophisticated ESP for Rivals with sleek, modern visuals and error handling
+-- Sophisticated 2D on-screen ESP for Rivals with modern visuals
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/RivalsScript/main/Utils.lua"))()
 local ESP = {}
@@ -7,18 +7,20 @@ ESP.__index = ESP
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
 
 -- ESP Configuration
 local CONFIG = {
     BOX_COLOR = Color3.fromRGB(255, 50, 50), -- Vibrant red
     OUTLINE_COLOR = Color3.fromRGB(0, 0, 0),
-    BOX_TRANSPARENCY = 0.6,
-    NAME_SIZE = UDim2.new(0, 200, 0, 40),
-    NAME_OFFSET = Vector3.new(0, 3.5, 0),
-    HEALTH_BAR_WIDTH = 4,
-    HEALTH_BAR_COLOR = Color3.fromRGB(50, 255, 50), -- Green for health
-    TEXT_COLOR = Color3.fromRGB(255, 255, 255)
+    TEXT_COLOR = Color3.fromRGB(255, 255, 255),
+    BOX_THICKNESS = 2,
+    BOX_PADDING = 2,
+    NAME_SIZE = 16,
+    NAME_OFFSET_Y = -20,
+    HEALTH_BAR_WIDTH = 100,
+    HEALTH_BAR_HEIGHT = 4,
+    HEALTH_BAR_COLOR = Color3.fromRGB(50, 255, 50) -- Green for health
 }
 
 function ESP.new()
@@ -27,184 +29,15 @@ function ESP.new()
     self.TeamCheck = true
     self.ThroughWalls = true
     self.Color = CONFIG.BOX_COLOR
-    self.ESPObjects = {} -- { [player] = ESPObject }
+    self.ESPObjects = {} -- { [player] = { Box, Outline, Name, HealthBar, HealthFill } }
     self.Connection = nil
     return self
 end
 
--- ESP Object for individual players
-local ESPObject = {}
-ESPObject.__index = ESPObject
-
-function ESPObject.new(player, character, espInstance)
-    local self = setmetatable({}, ESPObject)
-    self.Player = player
-    self.Character = character
-    self.ESPInstance = espInstance
-    self.BillboardGui = nil
-    self.NameLabel = nil
-    self.HealthBar = nil
-    self.HealthFill = nil
-    self.Box = nil
-    self.Outline = nil
-    self.Connection = nil
-    self:Initialize()
-    return self
-end
-
-function ESPObject:Initialize()
-    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-    local rootPart = self.Character:FindFirstChild("HumanoidRootPart") or self.Character:FindFirstChildOfClass("Part")
-    if not (humanoid and rootPart) then
-        warn("Failed to initialize ESP for " .. self.Player.Name .. ": Missing humanoid or root part")
-        return
-    end
-
-    -- Create BillboardGui for name and health
-    self.BillboardGui = Instance.new("BillboardGui")
-    self.BillboardGui.Name = "ESP_" .. self.Player.Name
-    self.BillboardGui.Adornee = rootPart
-    self.BillboardGui.Size = CONFIG.NAME_SIZE
-    self.BillboardGui.StudsOffset = CONFIG.NAME_OFFSET
-    self.BillboardGui.AlwaysOnTop = self.ESPInstance.ThroughWalls
-    self.BillboardGui.ClipsDescendants = true
-    self.BillboardGui.Parent = CoreGui
-
-    -- Name Label with background
-    self.NameLabel = Instance.new("TextLabel")
-    self.NameLabel.Size = UDim2.new(1, 0, 1, 0)
-    self.NameLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    self.NameLabel.BackgroundTransparency = 0.7
-    self.NameLabel.Text = self.Player.Name
-    self.NameLabel.TextColor3 = CONFIG.TEXT_COLOR
-    self.NameLabel.TextScaled = true
-    self.NameLabel.Font = Enum.Font.GothamBold
-    self.NameLabel.TextStrokeTransparency = 0.3
-    self.NameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    self.NameLabel.BorderSizePixel = 0
-    self.NameLabel.Parent = self.BillboardGui
-
-    -- Health Bar (vertical on the left)
-    local height = self:GetCharacterHeight()
-    self.HealthBar = Instance.new("Frame")
-    self.HealthBar.Size = UDim2.new(0, CONFIG.HEALTH_BAR_WIDTH, 0, height * 10)
-    self.HealthBar.Position = UDim2.new(-0.2, -CONFIG.HEALTH_BAR_WIDTH - 2, 0.5, -height * 5)
-    self.HealthBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    self.HealthBar.BorderSizePixel = 0
-    self.HealthBar.Parent = self.BillboardGui
-
-    self.HealthFill = Instance.new("Frame")
-    self.HealthFill.Size = UDim2.new(1, 0, math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1), 0)
-    self.HealthFill.Position = UDim2.new(0, 0, 1, 0)
-    self.HealthFill.AnchorPoint = Vector2.new(0, 1)
-    self.HealthFill.BackgroundColor3 = CONFIG.HEALTH_BAR_COLOR
-    self.HealthFill.BorderSizePixel = 0
-    self.HealthFill.Parent = self.HealthBar
-
-    -- Single outline box around character
-    local boxSize = self:GetCharacterBounds()
-    self.Box = Instance.new("BoxHandleAdornment")
-    self.Box.Name = "ESPBox"
-    self.Box.Adornee = rootPart
-    self.Box.Size = boxSize + Vector3.new(0.5, 0.5, 0.5)
-    self.Box.Color3 = self.ESPInstance.Color
-    self.Box.Transparency = CONFIG.BOX_TRANSPARENCY
-    self.Box.AlwaysOnTop = self.ESPInstance.ThroughWalls
-    self.Box.ZIndex = 1
-    self.Box.Parent = self.BillboardGui
-
-    self.Outline = Instance.new("BoxHandleAdornment")
-    self.Outline.Name = "ESPOutline"
-    self.Outline.Adornee = rootPart
-    self.Outline.Size = boxSize + Vector3.new(0.7, 0.7, 0.7)
-    self.Outline.Color3 = CONFIG.OUTLINE_COLOR
-    self.Outline.Transparency = 0
-    self.Outline.AlwaysOnTop = self.ESPInstance.ThroughWalls
-    self.Outline.ZIndex = 0
-    self.Outline.Parent = self.BillboardGui
-
-    -- Handle respawn
-    self.Connection = self.Player.CharacterAdded:Connect(function(newChar)
-        self:Destroy()
-        if self.ESPInstance.Enabled then
-            local newESP = ESPObject.new(self.Player, newChar, self.ESPInstance)
-            self.ESPInstance.ESPObjects[self.Player] = newESP
-            print("ESP respawned for: " .. self.Player.Name)
-        end
-    end)
-end
-
-function ESPObject:GetCharacterHeight()
-    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return 6 end -- Default height if no humanoid
-    local rootPart = self.Character:FindFirstChild("HumanoidRootPart")
-    local head = self.Character:FindFirstChild("Head")
-    if rootPart and head then
-        return (head.Position - rootPart.Position).Y * 1.2 -- Approximate height with buffer
-    end
-    return 6 -- Fallback
-end
-
-function ESPObject:GetCharacterBounds()
-    local parts = {}
-    for _, part in pairs(self.Character:GetChildren()) do
-        if part:IsA("BasePart") then
-            table.insert(parts, part)
-        end
-    end
-    if #parts == 0 then return Vector3.new(4, 6, 4) end -- Default size
-
-    local minPos, maxPos = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
-    for _, part in pairs(parts) do
-        local pos = part.Position
-        local size = part.Size / 2
-        minPos = Vector3.new(math.min(minPos.X, pos.X - size.X), math.min(minPos.Y, pos.Y - size.Y), math.min(minPos.Z, pos.Z - size.Z))
-        maxPos = Vector3.new(math.max(maxPos.X, pos.X + size.X), math.max(maxPos.Y, pos.Y + size.Y), math.max(maxPos.Z, pos.Z + size.Z))
-    end
-    return maxPos - minPos
-end
-
-function ESPObject:Update()
-    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-    local rootPart = self.Character:FindFirstChild("HumanoidRootPart") or self.Character:FindFirstChildOfClass("Part")
-    if not (humanoid and rootPart and self.BillboardGui and self.NameLabel and self.HealthFill and self.Box and self.Outline) then
-        print("Skipping ESP update for " .. self.Player.Name .. " due to missing components")
-        return
-    end
-
-    -- Update name and health
-    self.NameLabel.Text = self.Player.Name
-    self.HealthFill.Size = UDim2.new(1, 0, math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1), 0)
-
-    -- Update BillboardGui properties
-    self.BillboardGui.Adornee = rootPart
-    self.BillboardGui.AlwaysOnTop = self.ESPInstance.ThroughWalls
-
-    -- Update box and outline
-    local boxSize = self:GetCharacterBounds()
-    self.Box.Adornee = rootPart
-    self.Box.Size = boxSize + Vector3.new(0.5, 0.5, 0.5)
-    self.Box.Color3 = self.ESPInstance.Color
-    self.Box.AlwaysOnTop = self.ESPInstance.ThroughWalls
-    self.Outline.Adornee = rootPart
-    self.Outline.Size = boxSize + Vector3.new(0.7, 0.7, 0.7)
-    self.Outline.AlwaysOnTop = self.ESPInstance.ThroughWalls
-end
-
-function ESPObject:Destroy()
-    if self.Connection then
-        self.Connection:Disconnect()
-    end
-    if self.BillboardGui then
-        self.BillboardGui:Destroy()
-    end
-end
-
--- Main ESP Methods
 function ESP:Enable()
     if self.Enabled then return end
     self.Enabled = true
-    print("ESP enabled.")
+    print("ESP enabled with 2D drawing.")
     
     self.Connection = RunService.RenderStepped:Connect(function()
         self:Update()
@@ -218,7 +51,11 @@ function ESP:Disable()
         self.Connection = nil
     end
     for _, obj in pairs(self.ESPObjects) do
-        obj:Destroy()
+        obj.Box:Remove()
+        obj.Outline:Remove()
+        obj.Name:Remove()
+        if obj.HealthBar then obj.HealthBar:Remove() end
+        if obj.HealthFill then obj.HealthFill:Remove() end
     end
     self.ESPObjects = {}
     print("ESP disabled.")
@@ -233,25 +70,73 @@ end
 function ESP:SetThroughWalls(state)
     self.ThroughWalls = state
     print("ESP Through Walls set to: " .. tostring(state))
-    for _, obj in pairs(self.ESPObjects) do
-        obj.BillboardGui.AlwaysOnTop = state
-        obj.Box.AlwaysOnTop = state
-        obj.Outline.AlwaysOnTop = state
-    end
+    self:Update()
 end
 
 function ESP:SetColor(color)
     self.Color = color
     print("ESP Color updated to: " .. tostring(color))
     for _, obj in pairs(self.ESPObjects) do
-        obj.Box.Color3 = color
+        obj.Box.Color = color
+        obj.Name.Color = color
+        if obj.HealthFill then obj.HealthFill.Color = CONFIG.HEALTH_BAR_COLOR end
     end
+end
+
+function ESP:CreateESPForPlayer(player, character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildOfClass("Part")
+    if not (humanoid and rootPart) then
+        warn("Failed to create ESP for " .. player.Name .. ": Missing humanoid or root part")
+        return
+    end
+
+    local box = Drawing.new("Square")
+    box.Thickness = CONFIG.BOX_THICKNESS
+    box.Color = self.Color
+    box.Filled = false
+    box.Visible = false
+
+    local outline = Drawing.new("Square")
+    outline.Thickness = CONFIG.BOX_THICKNESS + 1
+    outline.Color = CONFIG.OUTLINE_COLOR
+    outline.Filled = false
+    outline.Visible = false
+
+    local name = Drawing.new("Text")
+    name.Size = CONFIG.NAME_SIZE
+    name.Center = true
+    name.Outline = true
+    name.Color = self.Color
+    name.Font = Drawing.Fonts.UI
+    name.Visible = false
+
+    local healthBar = Drawing.new("Square")
+    healthBar.Thickness = 1
+    healthBar.Color = Color3.fromRGB(20, 20, 20) -- Dark background
+    healthBar.Filled = true
+    healthBar.Visible = false
+
+    local healthFill = Drawing.new("Square")
+    healthFill.Thickness = 1
+    healthFill.Color = CONFIG.HEALTH_BAR_COLOR
+    healthFill.Filled = true
+    healthFill.Visible = false
+
+    return {
+        Box = box,
+        Outline = outline,
+        Name = name,
+        HealthBar = healthBar,
+        HealthFill = healthFill,
+        Character = character
+    }
 end
 
 function ESP:Update()
     local localPlayer = Players.LocalPlayer
-    
-    -- Remove ESP for players no longer detected
+
+    -- Clean up ESP for players no longer detected
     for player, obj in pairs(self.ESPObjects) do
         local stillDetected = false
         for _, data in pairs(Utils.GetPlayers()) do
@@ -261,14 +146,18 @@ function ESP:Update()
             end
         end
         if not stillDetected then
-            obj:Destroy()
+            obj.Box:Remove()
+            obj.Outline:Remove()
+            obj.Name:Remove()
+            if obj.HealthBar then obj.HealthBar:Remove() end
+            if obj.HealthFill then obj.HealthFill:Remove() end
             self.ESPObjects[player] = nil
             print("ESP removed for: " .. player.Name)
         end
     end
-    
+
     if not self.Enabled then return end
-    
+
     for _, data in pairs(Utils.GetPlayers()) do
         local player = data.Player
         if player ~= localPlayer then
@@ -276,23 +165,89 @@ function ESP:Update()
                 local character = player.Character
                 if character then
                     local espObj = self.ESPObjects[player]
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildOfClass("Part")
+                    if not (humanoid and rootPart) then continue end
+
                     if not espObj or espObj.Character ~= character then
+                        -- Create or recreate ESP for new/changed character
                         if espObj then
-                            espObj:Destroy()
-                            self.ESPObjects[player] = nil
+                            espObj.Box:Remove()
+                            espObj.Outline:Remove()
+                            espObj.Name:Remove()
+                            if espObj.HealthBar then espObj.HealthBar:Remove() end
+                            if espObj.HealthFill then espObj.HealthFill:Remove() end
                         end
-                        local newESP = ESPObject.new(player, character, self)
-                        if newESP.BillboardGui then
+                        local newESP = self:CreateESPForPlayer(player, character)
+                        if newESP then
                             self.ESPObjects[player] = newESP
                             print("ESP created for: " .. player.Name)
                         end
                     else
-                        espObj:Update()
+                        -- Update existing ESP
+                        local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                        if not onScreen and not self.ThroughWalls then
+                            espObj.Box.Visible = false
+                            espObj.Outline.Visible = false
+                            espObj.Name.Visible = false
+                            espObj.HealthBar.Visible = false
+                            espObj.HealthFill.Visible = false
+                            continue
+                        end
+
+                        -- Calculate box size based on character bounds
+                        local bounds = self:GetCharacterBounds(character)
+                        local sizeY = (Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, bounds.Y / 2, 0)).Y -
+                                     Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, bounds.Y / 2, 0)).Y) or 50
+                        local sizeX = sizeY * (bounds.X / bounds.Y) or 40
+                        local pos2D = Vector2.new(pos.X, pos.Y)
+
+                        -- Box and outline
+                        espObj.Box.Position = Vector2.new(pos2D.X - sizeX / 2 - CONFIG.BOX_PADDING, pos2D.Y - sizeY / 2 - CONFIG.BOX_PADDING)
+                        espObj.Box.Size = Vector2.new(sizeX + CONFIG.BOX_PADDING * 2, sizeY + CONFIG.BOX_PADDING * 2)
+                        espObj.Box.Visible = true
+                        espObj.Outline.Position = Vector2.new(pos2D.X - sizeX / 2 - CONFIG.BOX_PADDING - 1, pos2D.Y - sizeY / 2 - CONFIG.BOX_PADDING - 1)
+                        espObj.Outline.Size = Vector2.new(sizeX + CONFIG.BOX_PADDING * 2 + 2, sizeY + CONFIG.BOX_PADDING * 2 + 2)
+                        espObj.Outline.Visible = true
+
+                        -- Name
+                        espObj.Name.Position = Vector2.new(pos2D.X, pos2D.Y + CONFIG.NAME_OFFSET_Y)
+                        espObj.Name.Text = player.Name
+                        espObj.Name.Visible = true
+
+                        -- Health Bar
+                        local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+                        local barHeight = sizeY * healthPercent
+                        espObj.HealthBar.Position = Vector2.new(pos2D.X - CONFIG.HEALTH_BAR_WIDTH / 2 - sizeX / 2 - CONFIG.BOX_PADDING - 2, pos2D.Y + sizeY / 2 + 2)
+                        espObj.HealthBar.Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, CONFIG.HEALTH_BAR_HEIGHT)
+                        espObj.HealthBar.Visible = true
+                        espObj.HealthFill.Position = Vector2.new(pos2D.X - CONFIG.HEALTH_BAR_WIDTH / 2 - sizeX / 2 - CONFIG.BOX_PADDING - 2, pos2D.Y + sizeY / 2 + 2)
+                        espObj.HealthFill.Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, barHeight)
+                        espObj.HealthFill.Visible = true
                     end
                 end
             end
         end
     end
+end
+
+function ESP:GetCharacterBounds(character)
+    local parts = {}
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            table.insert(parts, part)
+        end
+    end
+    if #parts == 0 then return Vector3.new(4, 6, 4) end -- Default size
+
+    local minPos, maxPos = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
+    for _, part in pairs(parts) do
+        local pos = part.Position
+        local size = part.Size / 2
+        minPos = Vector3.new(math.min(minPos.X, pos.X - size.X), math.min(minPos.Y, pos.Y - size.Y), math.min(minPos.Z, pos.Z - size.Z))
+        maxPos = Vector3.new(math.max(maxPos.X, pos.X + size.X), math.max(maxPos.Y, pos.Y + size.Y), math.max(maxPos.Z, pos.Z + size.Z))
+    end
+    return maxPos - minPos
 end
 
 function ESP:Destroy()
