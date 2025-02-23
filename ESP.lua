@@ -1,5 +1,5 @@
 -- ESP.lua
--- ESP functionality for Rivals
+-- ESP functionality for Rivals with database-driven detection
 
 local Utils = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/RivalsScript/main/Utils.lua"))()
 local ESP = {}
@@ -52,11 +52,11 @@ function ESP:Update()
     
     if not self.Enabled then return end
     
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    for _, data in pairs(Utils.GetPlayers()) do
+        local player = data.Player
+        if player ~= localPlayer then
             if not self.TeamCheck or player.Team ~= localPlayer.Team then
-                local rootPart = player.Character.HumanoidRootPart
-                local espBox = Utils.CreateESPBox(rootPart)
+                local espBox = Utils.CreateESPBox(data.RootPart)
                 table.insert(self.ESPObjects, espBox)
             end
         end
